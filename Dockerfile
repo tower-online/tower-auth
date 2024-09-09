@@ -2,6 +2,7 @@ FROM ubuntu:24.04
 
 RUN apt update -y && \
     apt install -y \
+    curl \
     python3 \
     python3-pip \
     python3-venv

@@ -152,6 +152,11 @@ async def request_characters(request: RequestBase) -> Any:
         return characters
 
 
+@app.get("/healthcheck")
+def healthcheck():
+    return {"status": "OK"}
+
+
 async def get_active_user(platform: User.Platform, username: str) -> User:
     if not (user := await get_user(platform, username)):
         raise HTTPException(
