@@ -15,4 +15,4 @@ ENV PATH=/root/venv/bin:${PATH}
 WORKDIR /app
 COPY . .
 
-CMD ["uvicorn", "auth/main:app", "--host", "0.0.0.0", "--ssl-keyfile", "/run/secrets/key.pem", "--ssl-certfile", "/run/secrets/cert.pem"]
+CMD ["uvicorn", "auth.main:app", "--host", "0.0.0.0", "--ssl-keyfile", "/run/secrets/key.pem", "--ssl-certfile", "/run/secrets/cert.pem"]

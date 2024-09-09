@@ -9,8 +9,8 @@ from typing import Annotated, Any, Tuple, List
 import aiomysql
 import redis.asyncio as redis
 
-from config import Settings
-from utility import *
+from auth.settings import Settings
+from auth.utility import *
 
 USERNAME_PATTERN = "^[a-zA-Z0-9_]{6,30}$"
 
