@@ -25,15 +25,22 @@ class User(BaseModel):
         INACTIVE = "INACTIVE"
         BLOCKED = "BLOCKED"
 
+    id: Annotated[int, Query()]
     username: Annotated[str, Query()]
     platform: Annotated[Platform, Query()]
     status: Annotated[Status, Query()]
 
 
+class Character(BaseModel):
+    class Race(StrEnum):
+        HUMAN = "HUMAN"
+
+    name: Annotated[str, Query()]
+    # race: Annotated[Race, Query()]
+    # level: Annotated[int, Query()]
+
+
 class Characters(BaseModel):
-    class Character(BaseModel):
-        name: Annotated[str, Query()]
-        # level: Annotated[int, Query()]
 
     characters: Annotated[List[Character], Query()] = []
 
@@ -50,6 +57,11 @@ class RequestBase(BaseModel):
     platform: Annotated[User.Platform, Query()]
     username: Annotated[str, Query(pattern=USERNAME_PATTERN)]
     jwt: Annotated[str, Query()]
+
+
+class CreateCharacterRequest(RequestBase):
+    character_name: Annotated[str, Query(pattern=USERNAME_PATTERN)]
+    race: Annotated[Character.Race, Query()]
 
 
 @asynccontextmanager
@@ -112,7 +124,60 @@ async def issue_token_steam(username: Annotated[str, Query()]) -> Any:
     return TokenResponse(jwt=jwt)
 
 
-@app.post("/register/steam")
+@app.post("/character/create/test")
+async def create_character_test(request: CreateCharacterRequest) -> Any:
+    if not (payload := decode_token(request.jwt, settings.token_key)):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid token",
+        )
+    if payload["username"] != request.username:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid username",
+        )
+    
+    if user := get_user(request.username) is None:
+        raise HTTPException(
+            status_code=400,
+            detail="User not registered"
+        )
+    
+    async with db_pool.acquire() as connection, connection.cursor() as cursor:
+        await cursor.execute(
+            """SELECT name
+            FROM characters
+            WHERE name = %s""",
+            (request.character_name,)
+        )
+
+        if await cursor.fetchall() is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="Name already exist"
+            )
+        
+        await cursor.execute(
+            """INSERT INTO characters (user_id, name, race)
+            VALUES (%s, %s, %s)""",
+            (user.id, request.character_name, request.race)
+        )
+
+        await cursor.execute(
+            """SELECT name
+            FROM characters
+            WHERE name = %s""",
+            (request.character_name,)
+        )
+
+        if await cursor.fetchall() is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="Creation failed"
+            )
+
+
+@app.post("/character/create/steam")
 async def register_steam(
     username: Annotated[str, Query(pattern="^[a-zA-Z0-9_]{6,30}$")]
 ) -> Any:
@@ -147,7 +212,7 @@ async def request_characters(request: RequestBase) -> Any:
         if not (r := await cursor.fetchall()):
             return characters
         for (character_name,) in r:
-            characters.characters.append(Characters.Character(name=character_name))
+            characters.characters.append(Character(name=character_name))
 
         return characters
 
@@ -157,8 +222,8 @@ def healthcheck():
     return {"status": "OK"}
 
 
-async def get_active_user(platform: User.Platform, username: str) -> User:
-    if not (user := await get_user(platform, username)):
+async def get_active_user(username: str) -> User:
+    if not (user := await get_user(username)):
         raise HTTPException(
             status_code=400,
             detail="Incorrect username or platform",
@@ -173,19 +238,20 @@ async def get_active_user(platform: User.Platform, username: str) -> User:
     return user
 
 
-async def get_user(platform: User.Platform, username: str) -> User | None:
+async def get_user(username: str) -> User | None:
     async with db_pool.acquire() as connection, connection.cursor() as cursor:
         await cursor.execute(
-            "SELECT status FROM users WHERE username=%s AND platform=%s",
-            (username, platform),
+            "SELECT id, status, platform FROM users WHERE username=%s",
+            (username, )
         )
 
         if r := await cursor.fetchone():
-            (status,) = r
+            (id, status, platform) = r
         else:
             return None
 
         return User(
+            id=id,
             username=username,
             platform=platform,
             status=status,

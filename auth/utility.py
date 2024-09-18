@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-from typing import Tuple
 import jwt
 
 
@@ -23,6 +22,6 @@ def decode_token(token: str, key: str, algorithm: str = "HS256") -> dict | None:
     try:
         payload = jwt.decode(token, key=key, algorithms=[algorithm])
     except jwt.InvalidTokenError:
-        print("Invalid token")
+        return None
 
     return payload
