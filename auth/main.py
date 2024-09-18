@@ -137,7 +137,7 @@ async def create_character_test(request: CreateCharacterRequest) -> Any:
             detail="Invalid username",
         )
     
-    if user := get_user(request.username) is None:
+    if not (user := await get_user(request.username)):
         raise HTTPException(
             status_code=400,
             detail="User not registered"
@@ -151,7 +151,7 @@ async def create_character_test(request: CreateCharacterRequest) -> Any:
             (request.character_name,)
         )
 
-        if await cursor.fetchall() is not None:
+        if await cursor.fetchone() is not None:
             raise HTTPException(
                 status_code=400,
                 detail="Name already exist"
@@ -162,6 +162,7 @@ async def create_character_test(request: CreateCharacterRequest) -> Any:
             VALUES (%s, %s, %s)""",
             (user.id, request.character_name, request.race)
         )
+        await connection.commit()
 
         await cursor.execute(
             """SELECT name
@@ -170,7 +171,7 @@ async def create_character_test(request: CreateCharacterRequest) -> Any:
             (request.character_name,)
         )
 
-        if await cursor.fetchall() is not None:
+        if await cursor.fetchone() is None:
             raise HTTPException(
                 status_code=400,
                 detail="Creation failed"
